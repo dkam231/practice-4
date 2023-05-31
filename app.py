@@ -42,7 +42,7 @@ app.layout = html.Div([
     Output(component_id='histo-chart-final', component_property='figure'),
     Input(component_id='my-radio-buttons-final', component_property='value')
 )
-def update_graph(col_chosen):
+def update_graph(col_chosen): # type: ignore
     fig = px.histogram(df, x='country', y=col_chosen, histfunc='avg')
     return fig
 @callback(
