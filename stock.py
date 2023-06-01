@@ -1,25 +1,75 @@
-from dash import Dash, html, dash_table, dcc, callback, Output, Input
+from numpy import argsort
 import pandas as pd
 import plotly.graph_objects as go
 from geopy.geocoders import Nominatim as nm
-import plotly.express as px
+from dash import Dash, html, dash_table, dcc, callback, Output, Input
+import threading
 
-df = pd.read_csv('C:\Users\H292332\OneDrive - Halliburton\Documents\Coding practice\practice 4\constituents.csv')
+df = pd.read_csv('constituents.csv')
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-app = Dash(__name__)
+app = Dash(__name__, external_stylesheets=external_stylesheets)
 geolocator = nm(user_agent=__name__)
+count = 0
 
-def my_coords(Headquaters):
-	location = geolocator.geocode(Headquaters)
-	return location
+
+def geocode_location(row):
+    headq = f"{row['Headquarters']}"
+    try:
+        location = geolocator.geocode(headq)
+        row['lat'] = location.latitude
+        row['lon'] = location.longitude
+    except:
+        row['lat'] = None
+        row['lon'] = None
+    return row
+
+
+def geocode_dataframe(df):
+    threads = []
+    i=0
+    for i in range(500):
+        row=df.iloc(i)
+        t = threading.Thread(target=geocode_location, args=(row))
+        t.start()
+        threads.append(t)
+
+    for thread in threads:
+        thread.join()
+
+
+df_with_coords = df.apply(geocode_dataframe, axis=1)
+
+fig = go.Figure(data=go.Scattergeo(
+    lat=df_with_coords['lat'],
+    lon=df_with_coords['lon'],
+    text=df_with_coords['Headquarters'],
+    mode='markers',
+))
+
+fig.update_layout(
+    title='Company Headquarters',
+    geo=dict(
+        scope='world',
+        showland=True,
+        landcolor='rgb(217, 217, 217)',
+        showcountries=True,
+        countrycolor='rgb(255, 255, 255)',
+        showocean=True,
+        oceancolor='rgb(166, 202, 240)',
+        showcoastlines=True,
+        coastlinecolor='rgb(28, 28, 28)',
+        projection_type='equirectangular'
+    ),
+)
 
 app.layout = html.Div([
+    dcc.Graph(figure=fig),
     dash_table.DataTable(
         id='datatable-interactivity',
         columns=[
             {"name": i, "id": i, "deletable": True, "selectable": True} for i in df.columns
         ],
-        data=df.to_dict('records'),
+        data=df_with_coords.to_dict('records'),
         editable=False,
         filter_action="native",
         sort_action="native",
@@ -30,30 +80,11 @@ app.layout = html.Div([
         selected_columns=[],
         selected_rows=[],
         page_action="native",
-        page_current= 0,
-        page_size= 10,
-    ),
-    html.Div(id='datatable-interactivity-container')
-])
-site_lat = df.apply(my_coords(df.Headquaters)).lat 
-site_lon = df.apply(my_coords(df.Headquaters)).lon  
-locations_name = df.Headquaters
-df['text'] = df['airport'] + '' + df['city'] + ', ' + df['state'] + '' + 'Arrivals: ' + df['cnt'].astype(str)
-
-fig = go.Figure(data=go.Scattergeo(
-        lon = site_lon,
-        lat = site_lat,
-        text = df['text'],
-        mode = 'markers',
-        marker_color = df['cnt'],
-        ))
-
-fig.update_layout(
-        title = 'Most trafficked US airports<br>(Hover for airport names)',
-        geo_scope='usa',
+        page_current=0,
+        page_size=10,
     )
-fig.show()
-		
+])
+
 
 @app.callback(
     Output('datatable-interactivity', 'style_data_conditional'),
@@ -61,42 +92,10 @@ fig.show()
 )
 def update_styles(selected_columns):
     return [{
-        'if': { 'column_id': i },
+        'if': {'column_id': i},
         'background_color': '#D2F3FF'
     } for i in selected_columns]
-
-@app.callback(
-    Output('datatable-interactivity-container', "children"),
-    Input('datatable-interactivity', "derived_virtual_data"),
-    Input('datatable-interactivity', "derived_virtual_selected_rows"))
-
-
-def update_graphs(rows, derived_virtual_selected_rows):
-    # When the table is first rendered, `derived_virtual_data` and
-    # `derived_virtual_selected_rows` will be `None`. This is due to an
-    # idiosyncrasy in Dash (unsupplied properties are always None and Dash
-    # calls the dependent callbacks when the component is first rendered).
-    # So, if `rows` is `None`, then the component was just rendered
-    # and its value will be the same as the component's dataframe.
-    # Instead of setting `None` in here, you could also set
-    # `derived_virtual_data=df.to_rows('dict')` when you initialize
-    # the component.
-    if derived_virtual_selected_rows is None:
-        derived_virtual_selected_rows = []
-
-    dff = df if rows is None else pd.DataFrame(rows)
-
-    colors = ['#7FDBFF' if i in derived_virtual_selected_rows else '#0074D9'
-              for i in range(len(dff))]
-    
-
-	
 
 
 if __name__ == '__main__':
     app.run_server(debug=True)
-    
-    
-    # create a way to make a map
-    
-    

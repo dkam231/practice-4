@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 
 # Incorporate data
-df = pd.read_csv('https://raw.githubusercontent.com/dkam231/practice-4/b97c3fe2f0062f455da2282477507393a881220c/gapminder2007.csv')
+df = pd.read_csv('gapminder2007.csv')
 
 # Initialize the app - incorporate css
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
